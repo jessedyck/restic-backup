@@ -1,6 +1,6 @@
 # Automatic macOS Restic backups using launchctl or cron
 
-## Restic
+## Description
 
 This script will run a backup to a supplied Minio server, forget/prune old backups according to the policy in the script, log and optionally send a desktop notification using [terminal-notifier](https://github.com/julienXX/terminal-notifier) if installed.
 
@@ -10,7 +10,7 @@ This script was put together by combining and modifying a few scripts, mainly [r
 
 ## Set up
 
-### 1. Install and create a Minio backend
+### Install and create a Minio backend
 
 First, see this [official Minio + Restic tutorial](https://docs.minio.io/docs/restic-with-minio) on restic.
 
@@ -28,6 +28,7 @@ brew install terminal-notifier
 ### Configure environment variables locally
 
 #### Generate a passphrase
+Using a passphrase stored in the macOS Keychain seems like the most secure option to me. Be sure to store it in another secure location as well.
 ```bash
 security add-generic-password -D secret -a $USER -s restic-passphrase -w $(head -c 1024 /dev/urandom | base64)
 ```
@@ -38,7 +39,7 @@ Make sure the passphrase is accesssible without access to the computer in questi
 security find-generic-password -a $USER -s restic-passphrase -w
 ```
 
-#### Export additional variabbles
+#### Export configuration variables
 ```bash
 export RESTIC_REPOSITORY="s3:http://10.0.1.9:9000/jesse-mbp"
 export AWS_ACCESS_KEY_ID="xxxxxx"
@@ -52,7 +53,7 @@ Now we must initialize the repository on the remote end:
 restic init
 ```
 
-### Script for doing the backup
+### Get the backup script
 Clone this repo into your Home folder
 ```bash
 cd ~ && git clone https://github.com/jessedyck/restic-backup && cd restic-backup
@@ -60,20 +61,24 @@ cd ~ && git clone https://github.com/jessedyck/restic-backup && cd restic-backup
 
 #### Files:
 * `restic_backup.sh`: A script that defines how to run the backup. Edit this file to respect your needs in terms of backup which paths to backup, retention (number of backups to save), etc.
-
-Put this file in `/`:
 * `.backup_exclude`: A list of file pattern paths to exclude from you backups, files that just occupy storage space, backup-time, network and money.
 
 
-### Make first backup & verify
+## Run a Backup
+### Make first backup
 Now see if the backup itself works, by running:
 
 ```bash
 chmod +x ./restic_backup.sh
 ./restic_backup.sh
 ```
+### Get snapshots
+Verify a recent snapshop exists
+```bash
+restic snapshots
+```
 
-### Automation 
+## Automation 
 
 #### Launchctl
 
