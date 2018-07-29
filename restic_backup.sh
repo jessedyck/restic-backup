@@ -135,7 +135,7 @@ wait $!
 if [ $OPERATION_STATUS == 0 -a $? == 0 ]; then
 	maybe_notify "✅👌  (${BACKUP_TAG})" "Backup Maintenance"
 else
-	maybe_notify ="❌⚠️  (${BACKUP_TAG}). Manually re-run `forget` and `prune`" "Backup Maintenance"
+	maybe_notify "❌⚠️  (${BACKUP_TAG}). Manually re-run `forget` and `prune`" "Backup Maintenance"
 fi
 
 # Check repository for errors.
