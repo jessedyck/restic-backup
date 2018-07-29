@@ -2,6 +2,8 @@
 # Backup home folder using Restic to a Minio server.
 # All Minio variables are sent via environment variables.
 # Output is logged and sent via terminal-notifier (`brew install terminal-notifier`)
+#
+# Runs on macOS and Linux.
 
 # ********
 # CONFIGURATION OPTIONS
@@ -17,7 +19,6 @@ RETENTION_YEARS=3
 BACKUP_PATHS=~/
 BACKUP_EXCLUDES="--exclude-file ./.backup_exclude --exclude-file ~/.backup_exclude"
 BACKUP_TAG=home-$(date +%Y-%m-%dT%H.%M)
-
 
 # STOP EDITING
 # ********
@@ -67,11 +68,15 @@ if [[ ! "$AWS_SECRET_ACCESS_KEY" ]]; then
 	exit 1
 fi
 
-# Create backup password with:
+# On macOS, create backup password with:
 #	security add-generic-password -D secret -a $USER -s restic-passphrase -w $(head -c 1024 /dev/urandom | base64)
 # Now export the password.
 # Be sure to grab the new password from Keychain Access and store it somewhere else safe. 
-export RESTIC_PASSWORD="security find-generic-password -a $USER -s restic-passphrase -w"
+#
+# On Linux, export the password with the rest of the config variables.
+if [[ ! "$RESTIC_PASSWORD" ]]; then
+	RESTIC_PASSWORD="security find-generic-password -a $USER -s restic-passphrase -w"
+fi
 
 if [[ ! "$RESTIC_PASSWORD" ]]; then
 	maybe_notify "Please export RESTIC_PASSWORD" "Backup Configuration"
