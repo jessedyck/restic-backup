@@ -1,0 +1,30 @@
+{
+  "name": "restic-backup",
+  "version": "0.9.0",
+  "description": "Automated backups to a Minio server using Restic and Node.js, sending desktop notifications on completion and failure. The script will forget/prune old backups according to the defined policy, and outputs status to a log file.",
+  "main": "restic-backup.js",
+  "dependencies": {
+    "fast-plist": "^0.1.2",
+    "node-notifier": "^5.2.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jessedyck/restic-backup.git"
+  },
+  "keywords": [
+    "restic",
+    "backup",
+    "nodejs",
+    "minio"
+  ],
+  "author": "Jesse Dyck",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jessedyck/restic-backup/issues"
+  },
+  "homepage": "https://github.com/jessedyck/restic-backup#readme"
+}

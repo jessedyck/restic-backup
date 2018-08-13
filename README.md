@@ -1,12 +1,10 @@
-# Automatic macOS Restic backups using launchctl or cron
+# Automatic Restic backups on macOS and Linux
 
 ## Description
 
-This script will run a backup to a supplied Minio server, forget/prune old backups according to the policy in the script, log and optionally send a desktop notification using [terminal-notifier](https://github.com/julienXX/terminal-notifier) if installed.
+Automated backups to a Minio server using Restic and Node.js, sending desktop notifications on completion and failure. The script will forget/prune old backups according to the defined policy, and outputs status to a log file.
 
-Note, you can use any of the supported [storage backends](https://restic.readthedocs.io/en/latest/030_preparing_a_new_repo.html). The setup should be similar but you will have to use other configuration variables to match your backend of choice.
-
-This script was put together by combining and modifying a few scripts, mainly [restic-systemd-automatic-backup](https://github.com/erikw/restic-systemd-automatic-backup) and [borg-s3-home-backup](https://github.com/luispabon/borg-s3-home-backup).
+This script started from [restic-systemd-automatic-backup](https://github.com/erikw/restic-systemd-automatic-backup) and [borg-s3-home-backup](https://github.com/luispabon/borg-s3-home-backup), then morphed into a separate NodeJS script for logic outside of the shell.
 
 ## Set up
 
@@ -19,11 +17,6 @@ I use this [Minio ARM Docker container](https://github.com/jessedyck/minio-arm) 
 Take note of the your access key and secret for the next steps.
 
 Create a new bucket on your server by browsing to http://<local-ip>:9000 and logging in with your access key and secret.
-
-### (Optional) Install terminal-notifier
-```bash
-brew install terminal-notifier
-```
 
 ### Configure environment variables locally
 
@@ -47,6 +40,8 @@ export AWS_SECRET_ACCESS_KEY="xxxxxx"
 export RESTIC_PASSWORD="security find-generic-password -a $USER -s restic-passphrase -w"
 ```
 
+Those `export` commands can be used to get things set up, but ultimately should reside in your `~/.profile` so they persist into new sessions.
+
 ### Initialize remote repo
 Now we must initialize the repository on the remote end:
 ```bash
@@ -54,14 +49,14 @@ restic init
 ```
 
 ### Get the backup script
-Clone this repo into your Home folder
+Install via NPM:
 ```bash
-cd ~ && git clone https://github.com/jessedyck/restic-backup && cd restic-backup
+npm install jessedyck/restic-backup
 ```
 
 #### Files:
-* `restic_backup.sh`: A script that defines how to run the backup. Edit this file to respect your needs in terms of backup which paths to backup, retention (number of backups to save), etc.
-* `.backup_exclude`: A list of file pattern paths to exclude from you backups, files that just occupy storage space, backup-time, network and money.
+* `restic_backup.js`: A script that defines how to run the backup. Edit this file to respect your needs in terms of backup which paths to backup, retention (number of backups to save), etc.
+* `.backup_exclude`: A list of file pattern paths to exclude from you backups, files that just occupy storage space, backup-time, network and money. Note that on macOS, the script will read in Time Machine's default user profile excludes automatically.
 
 
 ## Run a Backup
@@ -69,11 +64,11 @@ cd ~ && git clone https://github.com/jessedyck/restic-backup && cd restic-backup
 Now see if the backup itself works, by running:
 
 ```bash
-chmod +x ./restic_backup.sh
-./restic_backup.sh
+node ./restic_backup.js
 ```
+
 ### Get snapshots
-Verify a recent snapshop exists
+Verify a recent snapshop exists using restic directly.
 ```bash
 restic snapshots
 ```
