@@ -46,12 +46,25 @@ const backupStatefile = backupDir + '/state.json';
 const backupDate = new Date();
 const backupTag = 'home-main';
 var   backupState;
+var   resticBin;
 
 // Check min node version
 if (!process.version >= minNodeVersion) {
     maybe_notify (`Minimum Node version required is ${minNodeVersion}`);
     process.exit(1);
 }
+
+// Find restic binary
+if (fs.existsSync('/usr/local/bin/restic')) {
+    resticBin = '/usr/local/bin/restic';
+} else if (typeof resticBin == 'undefined' && fs.existsSync('restic')) {
+    resticBin = fs.realpathSync('restic');
+} else {
+    maybe_notify ("Restic cannot be found in current directory or /usr/local/bin.", "Backup Configuration")
+    process.exit(1);
+}
+logger (`Found restic binary in ${resticBin}`);
+
 
 // Set up and check environment variables
 if ( !process.env.RESTIC_REPOSITORY || 
@@ -140,7 +153,7 @@ function dateDiff(d1, d2) {
  * @returns {Sting} Current version of Restic installed (directly from `restic version`)
  */
 async function getInstalledVersion () {
-    const { stdout, stderr } = await exec('restic version');
+    const { stdout, stderr } = await exec(`${resticBin} version`);
     
     if (stderr) return Promise.reject(stderr);
     
@@ -293,11 +306,11 @@ async function runPruneAndCheck () {
     let pruneStart, checkStart;
  
     // Keeping this all in a promise chain simplifies error handling
-    return exec(`restic forget --tag ${backupTag} --keep-hourly ${retention.hours} --keep-daily ${retention.days} --keep-weekly ${retention.weeks} --keep-monthly ${retention.months} --keep-yearly ${retention.years}`)
+    return exec(`${resticBin} forget --tag ${backupTag} --keep-hourly ${retention.hours} --keep-daily ${retention.days} --keep-weekly ${retention.weeks} --keep-monthly ${retention.months} --keep-yearly ${retention.years}`)
         .then ( () => {
             pruneStart = new Date;
             logger('Starting prune');
-            return execCmdWithStdout(`restic prune`);
+            return execCmdWithStdout(`${resticBin} prune`);
         })
         .then ( () => {
             backupState.lastKnownPurge = (new Date()).toISOString();
@@ -306,7 +319,7 @@ async function runPruneAndCheck () {
             logger (`Prune completed in ${dateDiff(pruneStart, new Date())}.`)
 
             checkStart = new Date;
-            return execCmdWithStdout(`restic check`)
+            return execCmdWithStdout(`${resticBin} check`)
         })
         .then ( () => {
             maybe_notify (`✅👌 Maintenance completed`, 'Backup Maintenance')
@@ -363,7 +376,7 @@ async function main () {
         if (platformExcludes.length > 0)
             backupExcludes += ' --exclude ' + platformExcludes.join(' --exclude ');
 
-        const backupJobHadNonfatalError = await execCmdWithStdout(`restic backup --tag ${backupTag} --verbose ${backupExcludes} ${backupPath}`);
+        const backupJobHadNonfatalError = await execCmdWithStdout(`${resticBin} backup --tag ${backupTag} --verbose ${backupExcludes} ${backupPath}`);
 
         // Update state then write it out the file
         backupState.lastKnownBackup = backupDate;
