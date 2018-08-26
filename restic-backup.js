@@ -3,7 +3,8 @@
 // All Minio variables are sent via environment variables.
 // Output is logged and notifications sent (when notification system is available)
 //
-// Runs on macOS and Linux.
+// Runs on macOS
+// TODO: Windows + Linux version
 
 
 // ********
@@ -249,7 +250,7 @@ function updateState (state) {
 }
 
 /**
- * @returns {Array} List of paths to exclude from backup
+ * @returns {Array} List of paths to exclude from backup, or an empty array
  */
 function getUserExcludesForPlatform () {
     const platform = process.platform;
@@ -268,6 +269,7 @@ function getUserExcludesForPlatform () {
             }
         break;
         default:
+            // Return an empty array for easier handling of paths
             return [];
         break;
     }
