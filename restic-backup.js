@@ -7,32 +7,6 @@
 // TODO: Windows + Linux version
 
 
-// ********
-// CONFIGURATION OPTIONS
-
-// How many backups to keep
-const retention = {
-    hours: 48,
-    days: 14,
-    weeks: 16,
-    months: 18,
-    years: 3,
-    purgeAfterNthBackup: 10 // How frequently to run the (intensive) purge/cleanup job 
-}
-
-// Default backup location: User's home directory
-const backupPath = process.env.HOME + "/";
-
-// .backup_exclude in the user's home directory is a line-separated list of files to exclude
-var backupExcludes = "--exclude-file " + process.env.HOME + "/.backup_exclude";
-
-// Directory to store logs and state
-const backupDir = process.env.HOME + '/.restic';
-
-
-// STOP EDITING
-// ********
-
 const https = require('https');
 const util = require('util');
 const cp = require('child_process');
@@ -42,8 +16,10 @@ const fs = require('fs');
 const plist = require('fast-plist');
 
 const minNodeVersion = 'v10.8.0';
-const backupLogfile = backupDir + '/backup.log';
-const backupStatefile = backupDir + '/state.json';
+
+// Directory to store logs and state
+const backupLogfile = './backup.log';
+const backupStatefile = './state.json';
 const backupDate = new Date();
 const backupTag = 'home-main';
 var   backupState;
@@ -65,20 +41,6 @@ if (fs.existsSync('/usr/local/bin/restic')) {
     process.exit(1);
 }
 logger (`Found restic binary in ${resticBin}`);
-
-
-// Set up and check environment variables
-if ( !process.env.RESTIC_REPOSITORY || 
-    !process.env.AWS_ACCESS_KEY_ID ||
-    !process.env.AWS_SECRET_ACCESS_KEY ) {
-        maybe_notify ("Please export RESTIC_REPOSITORY, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY", "Backup Configuration")
-        process.exit(1);
-}
-
-if (!process.env.RESTIC_PASSWORD) {
-    maybe_notify ("Please export RESTIC_PASSWORD", "Backup Configuration")
-    process.exit(1);
-}
 
 // UTILITY FUNCTIONS
 
@@ -150,6 +112,97 @@ function dateDiff(d1, d2) {
 
 
 // FUNCTIONS
+async function getConfig () {
+    var config;
+    
+    // Read config file from local directory - exit if fails
+    try {
+        let configFile = fs.readFileSync('./config.json');
+        config = JSON.parse(configFile);
+    } catch (e) {
+        maybe_notify(`Could not load config file or invalid config file.`, "Backup Configuration");
+        logger(e);
+        process.exit(1);
+    }
+
+    // Check each config property and track any in error.
+    // Wait until the end to exit with a list of all incorrect properties.
+    let configError = [];
+
+    if (!typeof config.resticRepository == 'string' || config.resticRepository == '')
+        configError.push('resticRepository');
+
+    if (!typeof config.AWSAccessKeyID == 'string' || config.AWSAccessKeyID == '')
+        configError.push('AWSAccessKeyID');
+
+    if (!typeof config.AWSSecretAccessKey == 'string' || config.AWSSecretAccessKey == '')
+        configError.push('AWSSecretAccessKey');
+
+    // If passwordFrom is set, run the appropriate commands to get
+    // the value from the specified store.
+    // Note: This means the password that may be set in the config is overwritten.
+    //
+    // TODO: Add additional passwordFrom values for other key-store systems
+    switch (config.passwordFrom) {
+        case 'keychain':
+            try {
+                let passBuffer = cp.execSync(`security find-generic-password -a ${process.env.USER} -s restic-passphrase -w`);
+
+                // The returned value from execSync has a trailing line-break, so trim it in toString().
+                config.resticPassword = passBuffer.toString('utf8', 0, passBuffer.length-1);
+            } catch (e) {
+                maybe_notify(`Could not retrieve password from keychain.`, "Backup Configuration");
+                process.exit(1);
+            }
+        break;
+    }
+
+    if (!typeof config.resticPassword == 'string' || config.resticPassword == '')
+        configError.push('resticPassword');
+    
+    if (!typeof config.includePaths == 'array' || !config.includePaths.length > 0)
+        configError.push('AWSAccessKeyID');
+
+    // If any properties had an error, exit
+    if (configError.length > 0) {
+        maybe_notify(`Missing or incorrect configuration value(s) for: ${configError.join(', ')}`, "Backup Configuration");
+        process.exit(1);
+    }
+
+    // normalize paths - replace ~/ token
+    config.includePaths = config.includePaths.map(a => a.replace('~/', process.env.HOME));
+    config.excludePaths = config.excludePaths.map(a => a.replace('~/', process.env.HOME));
+
+    // normalize paths - strip empty paths
+    config.includePaths = config.includePaths.filter(a => a != '');
+    config.excludePaths = config.excludePaths.filter(a => a != '');
+
+    // Test all paths to ensure they exist, otherwise exit
+    config.includePaths.forEach(a => {
+        if (!fs.existsSync(a)) {
+            maybe_notify(`Include path invalid: ${a}`, "Backup Configuration");
+            process.exit(1);
+        }
+    });
+
+    config.excludePaths.forEach(a => {
+        if (a != '' && !fs.existsSync(a)) {
+            maybe_notify(`Exclude path invalid: ${a}`, "Backup Configuration");
+            process.exit(1);
+        }
+    });
+
+    // Set restic environment variables - appears there's no other way
+    // to pass these into the cmd (except repo).
+    process.env.RESTIC_REPOSITORY = config.resticRepository;
+    process.env.AWS_ACCESS_KEY_ID = config.AWSAccessKeyID;
+    process.env.AWS_SECRET_ACCESS_KEY = config.AWSSecretAccessKey;
+    process.env.RESTIC_PASSWORD = config.resticPassword;
+
+    // Config checks out - return/resolve promise
+    return config;
+}
+
 /**
  * @returns {Sting} Current version of Restic installed (directly from `restic version`)
  */
@@ -304,11 +357,11 @@ async function execCmdWithStdout (cmd) {
     });
 }
 
-async function runPruneAndCheck () {
+async function runPruneAndCheck (config) {
     let pruneStart, checkStart;
  
     // Keeping this all in a promise chain simplifies error handling
-    return exec(`${resticBin} forget --tag ${backupTag} --keep-hourly ${retention.hours} --keep-daily ${retention.days} --keep-weekly ${retention.weeks} --keep-monthly ${retention.months} --keep-yearly ${retention.years}`)
+    return exec(`${resticBin} forget --tag ${backupTag} --keep-hourly ${config.retention.hours} --keep-daily ${config.retention.days} --keep-weekly ${config.retention.weeks} --keep-monthly ${config.retention.months} --keep-yearly ${config.retention.years}`)
         .then ( () => {
             pruneStart = new Date;
             logger('Starting prune');
@@ -327,7 +380,7 @@ async function runPruneAndCheck () {
             maybe_notify (`✅👌 Maintenance completed`, 'Backup Maintenance')
             
             backupState.lastKnownCheck = (new Date()).toISOString();
-            backupStatebackupsSinceLastKnownPurge = 0;
+            backupState.backupsSinceLastKnownPurge = 0;
             updateState(backupState);
 
             logger (`Check completed in ${dateDiff(checkStart, new Date())}.`)
@@ -346,15 +399,7 @@ async function runPruneAndCheck () {
 // MAIN FUNCTION
 async function main () {
 
-    // Create ~/.restic (if doesn't exist)
-    if (!fs.existsSync(backupDir)) {
-        try {
-            fs.mkdirSync(backupDir);
-        } catch (e) {
-            maybe_notify(`Could not create local directory: ${backupDir}`)
-            return Promise.reject(e);
-        }
-    }
+    const config = await getConfig();
 
     // initialize logging - First line explicitly does not include date stamp for readability
     fs.appendFile(backupLogfile, `************\n`, () => {} );
@@ -374,11 +419,16 @@ async function main () {
     try {
 
         // Create a string of excludes
-        const platformExcludes = getUserExcludesForPlatform();
-        if (platformExcludes.length > 0)
-            backupExcludes += ' --exclude ' + platformExcludes.join(' --exclude ');
+        let backupExcludes = ' --exclude-file ./.backup_exclude';
 
-        const backupJobHadNonfatalError = await execCmdWithStdout(`${resticBin} backup --tag ${backupTag} --verbose ${backupExcludes} ${backupPath}`);
+        if (config.excludePaths.length > 0)
+            backupExcludes += ` --exclude "${config.excludePaths.join('" --exclude "')}"`;
+
+        let platformExcludes = getUserExcludesForPlatform();
+        if (platformExcludes.length > 0)
+            backupExcludes += ` --exclude "${platformExcludes.join('" --exclude "')}"`
+
+        let backupJobHadNonfatalError = await execCmdWithStdout(`${resticBin} backup --tag ${backupTag} --verbose ${backupExcludes} "${config.includePaths.join('" "')}"`);
 
         // Update state then write it out the file
         backupState.lastKnownBackup = backupDate;
@@ -403,16 +453,16 @@ async function main () {
     // Decided to do this based on # of successful backups and not 'days since backup',
     // since the latter could prune after (for example) 7 days, even if there was 
     // only 1 backup in between those days. It would waste CPU and leaves fewer backups. 
-    if (backupState.backupsSinceLastKnownPurge >= retention.purgeAfterNthBackup) {
+    if (backupState.backupsSinceLastKnownPurge >= config.retention.purgeAfterNthBackup) {
         maybe_notify(`This will take a while.`, 'Starting Backup Maintenance')
         
         try {
-            await runPruneAndCheck();
+            await runPruneAndCheck(config);
         } catch (e) {
             
         }
     } else {
-        logger(`Skipping backup maintenance. Policy: ${retention.purgeAfterNthBackup} Current: ${backupState.backupsSinceLastKnownPurge}.`)
+        logger(`Skipping backup maintenance. Policy: ${config.retention.purgeAfterNthBackup} Current: ${backupState.backupsSinceLastKnownPurge}.`)
     }
 
     return Promise.resolve();

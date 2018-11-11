@@ -1,0 +1,21 @@
+{
+    "resticRepository": "s3:http://10.0.1.1:9000/repo",
+    "AWSAccessKeyID": "B68V1HJDFESGEXAMPLE",
+    "AWSSecretAccessKey": "Rp4z7hnvSGUFb3J/k0tWGtEXAMPLE",
+    "passwordFrom": "keychain",
+    "resticPassword": "",
+    "includePaths": [
+        "~/"
+    ],
+    "excludePaths": [
+        ""
+    ],
+    "retention": {
+        "hours": 48,
+        "days": 14,
+        "weeks": 16,
+        "months": 18,
+        "years": 3,
+        "purgeAfterNthBackup": 10
+    }
+}
