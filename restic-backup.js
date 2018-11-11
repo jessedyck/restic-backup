@@ -394,6 +394,26 @@ async function runPruneAndCheck (config) {
         });
 }
 
+/**
+ * Check if a launchctl plist exists in cwd, and copy it to ~/Library/LaunchAgents
+ * if it doesn't already exist. 
+ */
+function installPlist () {
+    let launchCtlPlist = 'me.jessedyck.restic-backup.plist';
+
+    if (process.platform == 'darwin' && fs.existsSync(launchCtlPlist)) {
+        if (fs.existsSync(process.env.HOME + '/Library/LaunchAgents/') && !fs.existsSync(process.env.HOME + '/Library/LaunchAgents/'+launchCtlPlist)) {
+            logger('Intalling plist');
+            fs.copyFileSync('./'+launchCtlPlist, process.env.HOME + '/Library/LaunchAgents/'+launchCtlPlist);
+
+        } else {
+            logger ('Plist already installed.')
+        }
+    } else {
+        logger ('No local plist found to install.')
+    }
+}
+
 
 // ********
 // MAIN FUNCTION
@@ -404,6 +424,8 @@ async function main () {
     // initialize logging - First line explicitly does not include date stamp for readability
     fs.appendFile(backupLogfile, `************\n`, () => {} );
     logger('Starting backup');
+
+    installPlist();
 
     backupState = getBackupState();
 
