@@ -4,7 +4,9 @@
   "description": "Automated backups to a Minio server using Restic and Node.js, sending desktop notifications on completion and failure. The script will forget/prune old backups according to the defined policy, and outputs status to a log file.",
   "main": "restic-backup.js",
   "dependencies": {
-    "fast-plist": "^0.1.2",
+    "fast-plist": "^0.1.2"
+  },
+  "optionalDependencies": {
     "node-notifier": "^5.2.1"
   },
   "devDependencies": {},

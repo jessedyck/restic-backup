@@ -11,9 +11,19 @@ const https = require('https');
 const util = require('util');
 const cp = require('child_process');
 const exec = util.promisify(cp.exec);
-const notifier = require('node-notifier');
 const fs = require('fs');
-const plist = require('fast-plist');
+
+// Optional modules
+if (process.platform == 'darwin') {
+    const plist = require('fast-plist');
+}
+
+// node-notifier shouldn't be required, eg: for linux servers
+try {
+    const notifier = require('node-notifier');
+} catch (err) {
+    const notifier = false;
+}
 
 const minNodeVersion = 'v10.8.0';
 
@@ -66,10 +76,13 @@ const get = util.promisify(https.get);
  * @param {String} title The title of the message
  */
 function maybe_notify(message, title) {
-    notifier.notify ( {
-        title: title,
-        message: message,
-    });
+    if (notifier) {
+        notifier.notify ( {
+            title: title,
+            message: message,
+        });
+    }
+    
     logger(`${title}: ${message}`);
 }
 
