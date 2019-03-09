@@ -14,15 +14,19 @@ const exec = util.promisify(cp.exec);
 const fs = require('fs');
 
 // Optional modules
-if (process.platform == 'darwin') {
-    const plist = require('fast-plist');
+let notifier = false, plist = false;
+
+try {
+    plist = require('fast-plist');
+} catch (e) { 
+    logger('Could not load module fast-plist. Error: ' + e.code)
 }
 
 // node-notifier shouldn't be required, eg: for linux servers
 try {
-    const notifier = require('node-notifier');
+    notifier = require('node-notifier');
 } catch (err) {
-    const notifier = false;
+    logger('Could not load module node-notifier. Error: ' + e.code)
 }
 
 const minNodeVersion = 'v10.8.0';
