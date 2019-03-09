@@ -142,6 +142,11 @@ async function getConfig () {
         process.exit(1);
     }
 
+    // By default, run restic with `nice` to reduce priority
+    if ( typeof config.beNice == 'undefined' ||
+        (config.beNice != 1 || config.beNice != 0) )
+        config.beNice = 1;
+
     // Check each config property and track any in error.
     // Wait until the end to exit with a list of all incorrect properties.
     let configError = [];
@@ -456,6 +461,7 @@ async function main () {
 
     // Try to run the backup job
     try {
+        let resticCmd = `${resticBin} backup`;
 
         // Create a string of excludes
         let backupExcludes = ' --exclude-file ./.backup_exclude';
@@ -467,7 +473,10 @@ async function main () {
         if (platformExcludes.length > 0)
             backupExcludes += ` --exclude "${platformExcludes.join('" --exclude "')}"`
 
-        let backupJobHadNonfatalError = await execCmdWithStdout(`${resticBin} backup --tag ${backupTag} --verbose ${backupExcludes} "${config.includePaths.join('" "')}"`);
+        if (config.beNice)
+            resticCmd = 'nice ' + resticCmd;
+
+        let backupJobHadNonfatalError = await execCmdWithStdout(`${resticCmd} --tag ${backupTag} --verbose ${backupExcludes} "${config.includePaths.join('" "')}"`);
 
         // Update state then write it out the file
         backupState.lastKnownBackup = backupDate;

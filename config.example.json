@@ -4,6 +4,7 @@
     "AWSSecretAccessKey": "Rp4z7hnvSGUFb3J/k0tWGtEXAMPLE",
     "passwordFrom": "keychain",
     "resticPassword": "",
+    "beNice": 1,
     "includePaths": [
         "~/"
     ],
