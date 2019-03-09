@@ -37,7 +37,7 @@ const backupStatefile = './state.json';
 const backupDate = new Date();
 const backupTag = 'home-main';
 var   backupState;
-var   resticBin;
+var   resticBin = null;
 
 // Check min node version
 if (!process.version >= minNodeVersion) {
@@ -47,8 +47,9 @@ if (!process.version >= minNodeVersion) {
 
 // Find restic binary
 if (fs.existsSync('/usr/local/bin/restic')) {
-    resticBin = '/usr/local/bin/restic';
-} else if (typeof resticBin == 'undefined' && fs.existsSync('restic')) {
+    // Might be installed via brew, get the real path (not symlink)
+    resticBin = fs.realpathSync('/usr/local/bin/restic');
+} else if (resticBin == null && fs.existsSync('restic')) {
     resticBin = fs.realpathSync('restic');
 } else {
     maybe_notify ("Restic cannot be found in current directory or /usr/local/bin.", "Backup Configuration")
@@ -142,6 +143,11 @@ async function getConfig () {
         process.exit(1);
     }
 
+    // Set default auto-update option to ON
+    if ( typeof config.autoUpdate == 'undefined' ||
+        (config.autoUpdate != 1 || config.autoUpdate != 0) )
+        config.autoUpdate = 1;
+
     // By default, run restic with `nice` to reduce priority
     if ( typeof config.beNice == 'undefined' ||
         (config.beNice != 1 || config.beNice != 0) )
@@ -226,46 +232,76 @@ async function getConfig () {
 }
 
 /**
- * @returns {Sting} Current version of Restic installed (directly from `restic version`)
+ * If enabled, update Restic using a detected method.
+ * Linux package managers probably shouldn't be used, as they're often
+ * outdated. 
+ * 
+ * @returns {Boolean} True on successful run (even when update is disabled) or
+ * false on update failure.
  */
-async function getInstalledVersion () {
-    const { stdout, stderr } = await exec(`${resticBin} version`);
+async function updateRestic (autoUpdate, lastUpdateCheck) {
+    // Don't update if autoupdate is disabled or has been checked
+    // within 24 hours
+    logger(`Starting update check.`);
     
-    if (stderr) return Promise.reject(stderr);
-    
-    logger('Got installed Restic version: ' + stdout);
-    return Promise.resolve(stdout);
-}
-
-/**
- * @returns {Sting} Name of the latest released version of Restic from githug
- */
-async function getLatestVersion () {
-    const sourceRepo = 'restic/restic';
-
-    const opt = {
-        hostname: 'api.github.com',
-        path: `/repos/${sourceRepo}/releases/latest`,
-        headers: {
-            'User-Agent': `node`
-        },
-        timeout: 15000 // 15 seconds
+    // intentionally using a loose check
+    if (autoUpdate == false) {
+        logger(`Auto-update disabled.`);
+        return true;
     }
 
-    const resp = await get(opt)
+    let hoursSinceUpdate = (new Date() - (new Date(lastUpdateCheck))) / 1000 / 60 / 60;
+    let updateCheckInterval = 1440; // hours
 
-    let rawData = '';
-    resp.on('data', d => { rawData += d; })
+    logger(`Last update check: ${lastUpdateCheck}`);
+    logger(`Hours since last update check: ${hoursSinceUpdate}`);
     
-    // wait for end event
-    await resp.end;
+    if (hoursSinceUpdate < updateCheckInterval) {
+        logger(`Skipping auto-update this time.`);
+        return true;
+    }
 
-    try {
-        const parsedData = JSON.parse(rawData);
-        logger(`Got latest Restic version: ${parsedData.name}`);
-        return Promise.resolve(parsedData.name);
-    } catch (e) {
-        return Promise.reject(e.message);
+    logger(`Checking for Restic updates.`);
+    
+    backupState.lastUpdateCheck = (new Date()).toISOString();
+    updateState(backupState);
+    
+    let installedVia = false;
+    let failureMessage = null;
+    
+    if (-1 !== resticBin.indexOf('Cellar')) {
+        installedVia = 'brew';
+        logger('Restic appears to have been installed via homebrew');
+    }
+    
+    if (installedVia == 'brew') {
+        try {
+            logger('Updating Restic via brew'); 
+            cp.execSync(`brew upgrade restic`);
+        } catch (e) { 
+            if (-1 == e.message.indexOf('already installed')) {
+                failureMessage = e.message;
+            }
+            else {
+                logger('Restic is already up to date.'); 
+            }
+        }
+    } else {
+        try {
+            maybe_notify('Updating Restic', 'Update Restic'); 
+            cp.execSync(`${resticBin} self-update`);
+        } catch (e) {
+            failureMessage = e.message;
+        }   
+    }
+
+    if (failureMessage == null) {
+        logger ('Restic updated successfully');
+        return true;
+    } else {
+        maybe_notify(`❌⚠️ Updating Restic failed`, 'Update Restic'); 
+        logger (failureMessage);
+        return false;
     }
 }
 
@@ -282,6 +318,7 @@ function getBackupState () {
         lastKnownBackup: '',
         lastKnownPurge: (new Date()).toISOString(),
         lastKnownCheck: (new Date()).toISOString(),
+        lastUpdateCheck: (new Date()).toISOString(),
         backupsSinceLastKnownPurge: 0
     };
 
@@ -451,13 +488,7 @@ async function main () {
 
     backupState = getBackupState();
 
-    // Check for Restic updates
-    const installedVersion = await getInstalledVersion();
-    const latestVersion = await getLatestVersion();
-
-    if (installedVersion.indexOf(latestVersion) !== 0) {
-        maybe_notify(`New version of Restic is available: ${latestVersion}\nYou have: ${installedVersion}`, 'Restic Update Available');
-    }
+    const latestVersion = await updateRestic(config.autoUpdate, backupState.lastUpdateCheck);
 
     // Try to run the backup job
     try {
