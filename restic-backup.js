@@ -288,8 +288,12 @@ async function updateRestic (autoUpdate, lastUpdateCheck) {
         }
     } else {
         try {
-            maybe_notify('Updating Restic', 'Update Restic'); 
-            cp.execSync(`${resticBin} self-update`);
+            maybe_notify('Updating Restic via `self-update`', 'Update Restic'); 
+            let updateMsg = cp.execSync(`${resticBin} self-update`);
+            
+            if (-1 != updateMsg.indexOf('restic is up to date')) {
+                logger('Restic is already up to date.'); 
+            }
         } catch (e) {
             failureMessage = e.message;
         }   
