@@ -2,8 +2,8 @@
     "resticRepository": "s3:http://10.0.1.1:9000/repo",
     "AWSAccessKeyID": "B68V1HJDFESGEXAMPLE",
     "AWSSecretAccessKey": "Rp4z7hnvSGUFb3J/k0tWGtEXAMPLE",
-    "passwordFrom": "keychain",
-    "resticPassword": "",
+    "passwordFrom": "string",
+    "resticPassword": "Passw0rd",
     "autoUpdate": 1,
     "beNice": 1,
     "includePaths": [
