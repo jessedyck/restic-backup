@@ -12,6 +12,11 @@ const cp = require('child_process');
 const exec = util.promisify(cp.exec);
 const fs = require('fs');
 
+// Check min node version
+const semver = require('semver');
+const version = require('./package').engines.node;
+
+
 // Optional modules
 let notifier = false, plist = false;
 
@@ -28,8 +33,6 @@ try {
 	logger('Could not load module node-notifier. Error: ' + e.code)
 }
 
-const minNodeVersion = 'v10.8.0';
-
 // Directory to store logs and state
 const backupLogfile = './backup.log';
 const backupStatefile = './state.json';
@@ -39,9 +42,11 @@ var   backupState;
 var   resticBin = null;
 
 // Check min node version
-if (!process.version >= minNodeVersion) {
-	maybe_notify (`Minimum Node version required is ${minNodeVersion}`);
+if (!semver.satisfies(process.version, version)) {
+	logger(`Required node version ${version} not satisfied with current version ${process.version}.`);
 	process.exit(1);
+} else {
+	logger (`Meets min node version ${version}`)
 }
 
 // Find restic binary
