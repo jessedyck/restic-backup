@@ -12,10 +12,9 @@ const cp = require('child_process');
 const exec = util.promisify(cp.exec);
 const fs = require('fs');
 
-// Check min node version
+// Used for node version check
 const semver = require('semver');
 const version = require('./package').engines.node;
-
 
 // Optional modules
 let notifier = false, plist = false;
@@ -516,7 +515,7 @@ async function main () {
 	// Backup maintanence.
 	// Decided to do this based on # of successful backups and not 'days since backup',
 	// since the latter could prune after (for example) 7 days, even if there was 
-	// only 1 backup in between those days. It would waste CPU and leaves fewer backups. 
+	// only 1 backup in between those days. It would waste CPU and leave fewer backups. 
 	if (backupState.backupsSinceLastKnownPurge >= config.retention.purgeAfterNthBackup) {
 		maybe_notify(`This will take a while.`, 'Starting Backup Maintenance')
 		
