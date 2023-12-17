@@ -1,6 +1,7 @@
 # Automatic Restic backups on macOS and Linux
 
-**Don't use this!** Still a work in progress.
+> [!IMPORTANT]
+> This isn't really maintained. It has ran for me without issue for years. But should issues arise, I'll switch to https://github.com/erikw/restic-automatic-backup-scheduler, and you should too. 
 
 ## Description
 Automated backups to a Minio server using Restic and Node.js, sending desktop notifications on completion and failure. The script will forget/prune old backups according to the defined policy, and outputs status to a log file.
